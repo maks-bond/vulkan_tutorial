@@ -10,7 +10,8 @@ class LveWindow {
 public:
     LveWindow(int w, int h, const std::string &name);
     ~LveWindow();
-
+    LveWindow(const LveWindow &) = delete;
+    LveWindow &operator=(const LveWindow &) = delete;
     bool shouldClose() {return glfwWindowShouldClose(window);}
 
 private:
