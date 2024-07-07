@@ -1,33 +1,31 @@
 #pragma once
 
-#include <cstdint>
-#include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
 #include <string>
-
 namespace lve {
+
 class LveWindow {
-public:
-    LveWindow(uint32_t w, uint32_t h, const std::string &name);
-    ~LveWindow();
-    LveWindow(const LveWindow &) = delete;
-    LveWindow &operator=(const LveWindow &) = delete;
-    bool shouldClose() {return glfwWindowShouldClose(window);}
+ public:
+  LveWindow(int w, int h, std::string name);
+  ~LveWindow();
 
-    void createWindowSurface(VkInstance instance, VkSurfaceKHR *surface);
+  LveWindow(const LveWindow &) = delete;
+  LveWindow &operator=(const LveWindow &) = delete;
 
-    VkExtent2D get_extent() {return {width, height}; };
+  bool shouldClose() { return glfwWindowShouldClose(window); }
+  VkExtent2D getExtent() { return {static_cast<uint32_t>(width), static_cast<uint32_t>(height)}; }
 
-private:
-    void initWindow();
+  void createWindowSurface(VkInstance instance, VkSurfaceKHR *surface);
 
-    const uint32_t height;
-    const uint32_t width;
+ private:
+  void initWindow();
 
-    std::string windowName;
-    GLFWwindow *window;
+  const int width;
+  const int height;
+
+  std::string windowName;
+  GLFWwindow *window;
 };
-
-}
+}  // namespace lve

@@ -1,10 +1,25 @@
 include .env
 
 CFLAGS = -std=c++17 -I. -I$(VULKAN_SDK_PATH)/include
-LDFLAGS = -lglfw -lvulkan -ldl -lpthread -lX11 -lXxf86vm -lXrandr -lXi
-#LDFLAGS = -L$(VULKAN_SDK_PATH)/lib `pkg-config --static --libs glfw3` -lvulkan
-a.out: *.cpp *.hpp
-	g++ $(CFLAGS) -o a.out *.cpp $(LDFLAGS)
+#LDFLAGS = -lglfw -lvulkan -ldl -lpthread -lX11 -lXxf86vm -lXrandr -lXi
+LDFLAGS = -L$(VULKAN_SDK_PATH)/lib `pkg-config --static --libs glfw3` -lvulkan
+
+# create list of all spv files and set as dependency
+vertSources = $(shell find ./shaders -type f -name "*.vert")
+vertObjFiles = $(patsubst %.vert, %.vert.spv, $(vertSources))
+fragSources = $(shell find ./shaders -type f -name "*.frag")
+fragObjFiles = $(patsubst %.frag, %.frag.spv, $(fragSources))
+
+TARGET = a.out
+$(TARGET): $(vertObjFiles) $(fragObjFiles)
+$(TARGET): *.cpp *.hpp
+	g++ $(CFLAGS) -o $(TARGET) *.cpp $(LDFLAGS)
+
+GLSLC := /usr/local/bin/glslc
+
+# make shader targets
+%.spv: %
+	${GLSLC} $< -o $@
 
 .PHONY: test clean
 
@@ -13,3 +28,4 @@ test: a.out
 
 clean:
 	rm -f a.out
+	rm -f shaders/*.spv
