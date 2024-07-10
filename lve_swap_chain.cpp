@@ -23,7 +23,7 @@ LveSwapChain::LveSwapChain(
   oldSwapChain = nullptr;
 }
 
-void LveSwapChain::init() { 
+void LveSwapChain::init() {
   createSwapChain();
   createImageViews();
   createRenderPass();

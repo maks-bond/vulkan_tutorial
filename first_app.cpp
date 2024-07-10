@@ -1,14 +1,9 @@
 #include "first_app.hpp"
-#include "lve_device.hpp"
-#include "lve_model.hpp"
 
 // std
-#include <GLFW/glfw3.h>
 #include <array>
-#include <cassert>  
-#include <memory>
+#include <cassert>
 #include <stdexcept>
-#include <vulkan/vulkan_core.h>
 
 namespace lve {
 
@@ -31,13 +26,11 @@ void FirstApp::run() {
 }
 
 void FirstApp::loadModels() {
-    std::vector<LveModel::Vertex> vertices {
-        {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-        {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-        {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
-    };
-
-    lveModel = std::make_unique<LveModel>(lveDevice, vertices);
+  std::vector<LveModel::Vertex> vertices{
+      {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+      {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+      {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}};
+  lveModel = std::make_unique<LveModel>(lveDevice, vertices);
 }
 
 void FirstApp::createPipelineLayout() {
@@ -51,6 +44,27 @@ void FirstApp::createPipelineLayout() {
       VK_SUCCESS) {
     throw std::runtime_error("failed to create pipeline layout!");
   }
+}
+
+void FirstApp::recreateSwapChain() {
+  auto extent = lveWindow.getExtent();
+  while (extent.width == 0 || extent.height == 0) {
+    extent = lveWindow.getExtent();
+    glfwWaitEvents();
+  }
+  vkDeviceWaitIdle(lveDevice.device());
+
+  if (lveSwapChain == nullptr) {
+    lveSwapChain = std::make_unique<LveSwapChain>(lveDevice, extent);
+  } else {
+    lveSwapChain = std::make_unique<LveSwapChain>(lveDevice, extent, std::move(lveSwapChain));
+    if (lveSwapChain->imageCount() != commandBuffers.size()) {
+      freeCommandBuffers();
+      createCommandBuffers();
+    }
+  }
+
+  createPipeline();
 }
 
 void FirstApp::createPipeline() {
@@ -83,17 +97,13 @@ void FirstApp::createCommandBuffers() {
   }
 }
 
-void FirstApp::recreateSwapChain() {
-  auto extent = lveWindow.getExtent();
-  while(extent.width == 0 || extent.height == 0) {
-    extent = lveWindow.getExtent();
-    glfwWaitEvents();
-  }
-
-  vkDeviceWaitIdle(lveDevice.device());
-  lveSwapChain = nullptr;
-  lveSwapChain = std::make_unique<LveSwapChain>(lveDevice, extent);
-  createPipeline();
+void FirstApp::freeCommandBuffers() {
+  vkFreeCommandBuffers(
+      lveDevice.device(),
+      lveDevice.getCommandPool(),
+      static_cast<uint32_t>(commandBuffers.size()),
+      commandBuffers.data());
+  commandBuffers.clear();
 }
 
 void FirstApp::recordCommandBuffer(int imageIndex) {
@@ -120,8 +130,20 @@ void FirstApp::recordCommandBuffer(int imageIndex) {
 
   vkCmdBeginRenderPass(commandBuffers[imageIndex], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
+  VkViewport viewport{};
+  viewport.x = 0.0f;
+  viewport.y = 0.0f;
+  viewport.width = static_cast<float>(lveSwapChain->getSwapChainExtent().width);
+  viewport.height = static_cast<float>(lveSwapChain->getSwapChainExtent().height);
+  viewport.minDepth = 0.0f;
+  viewport.maxDepth = 1.0f;
+  VkRect2D scissor{{0, 0}, lveSwapChain->getSwapChainExtent()};
+  vkCmdSetViewport(commandBuffers[imageIndex], 0, 1, &viewport);
+  vkCmdSetScissor(commandBuffers[imageIndex], 0, 1, &scissor);
+
   lvePipeline->bind(commandBuffers[imageIndex]);
-  vkCmdDraw(commandBuffers[imageIndex], 3, 1, 0, 0);
+  lveModel->bind(commandBuffers[imageIndex]);
+  lveModel->draw(commandBuffers[imageIndex]);
 
   vkCmdEndRenderPass(commandBuffers[imageIndex]);
   if (vkEndCommandBuffer(commandBuffers[imageIndex]) != VK_SUCCESS) {
@@ -133,7 +155,7 @@ void FirstApp::drawFrame() {
   uint32_t imageIndex;
   auto result = lveSwapChain->acquireNextImage(&imageIndex);
 
-  if(result == VK_ERROR_OUT_OF_DATE_KHR) {
+  if (result == VK_ERROR_OUT_OF_DATE_KHR) {
     recreateSwapChain();
     return;
   }
@@ -144,13 +166,12 @@ void FirstApp::drawFrame() {
 
   recordCommandBuffer(imageIndex);
   result = lveSwapChain->submitCommandBuffers(&commandBuffers[imageIndex], &imageIndex);
-  if(result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || result == lveWindow.wasWindowResized()) {
+  if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR ||
+      lveWindow.wasWindowResized()) {
     lveWindow.resetWindowResizedFlag();
     recreateSwapChain();
     return;
-  }
-
-  if (result != VK_SUCCESS) {
+  } else if (result != VK_SUCCESS) {
     throw std::runtime_error("failed to present swap chain image!");
   }
 }
